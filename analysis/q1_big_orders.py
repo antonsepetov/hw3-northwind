@@ -1,3 +1,8 @@
+"""Q1: how concentrated are big orders across customers?
+
+Writes charts to ``docs/figures`` and tables to ``outputs``.
+"""
+
 import matplotlib
 
 matplotlib.use("Agg")
@@ -20,10 +25,35 @@ OTHER_COLOR = "#64748b"
 
 
 def big_order_cutoff(orders, quantile=BIG_ORDER_QUANTILE):
+    """Return the order value at which an order counts as big.
+
+    Args:
+        orders (pandas.DataFrame): Orders with a ``Revenue`` column.
+        quantile (float): Quantile of order revenue used as the
+            cutoff; 0.90 means the top 10% of orders.
+
+    Returns:
+        float: Cutoff in USD.
+    """
     return orders["Revenue"].quantile(quantile)
 
 
 def customer_summary(orders, cutoff):
+    """Summarize big-order revenue for each customer.
+
+    Args:
+        orders (pandas.DataFrame): Orders from
+            ``orders_with_revenue``.
+        cutoff (float): Minimum order revenue in USD (inclusive) for
+            a big order.
+
+    Returns:
+        pandas.DataFrame: One row per customer with at least one big
+        order, sorted by big-order revenue (highest first), with
+        order counts, revenue totals, share and cumulative share of
+        all big-order revenue, and the share of the customer's own
+        orders that are big.
+    """
     orders = orders.assign(IsBig=orders["Revenue"] >= cutoff)
     summary = orders.groupby(["CompanyName", "Country"]).agg(
         TotalOrders=("OrderID", "count"),
@@ -45,6 +75,17 @@ def customer_summary(orders, cutoff):
 
 
 def cutoff_sensitivity(orders):
+    """Compare the big-order result across five cutoff definitions.
+
+    Args:
+        orders (pandas.DataFrame): Orders from
+            ``orders_with_revenue``.
+
+    Returns:
+        pandas.DataFrame: One row per definition with its cutoff
+        (USD), big-order count, customers with big orders, the top
+        three customers, and their share of big-order revenue.
+    """
     q1, q3 = orders["Revenue"].quantile([0.25, 0.75])
     cutoffs = [
         ("$2,500 and up", 2500.0),
@@ -70,6 +111,17 @@ def cutoff_sensitivity(orders):
 
 
 def plot_order_distribution(orders, cutoff, path):
+    """Plot a log-scale histogram of order values split at the cutoff.
+
+    Args:
+        orders (pandas.DataFrame): Orders with a ``Revenue`` column.
+        cutoff (float): Big-order cutoff in USD, drawn as a dashed
+            line.
+        path (pathlib.Path): Destination PNG; overwritten if present.
+
+    Returns:
+        None. Saves the figure to ``path``.
+    """
     fig, ax = plt.subplots(figsize=(9, 4.8))
     low, high = np.log10(orders["Revenue"].min()), np.log10(orders["Revenue"].max())
     step = (high - low) / 40
@@ -105,6 +157,20 @@ def plot_order_distribution(orders, cutoff, path):
 
 
 def plot_big_order_customers(summary, path, top_n=TOP_N_CUSTOMERS, highlight=3):
+    """Plot big-order revenue by customer as horizontal bars.
+
+    Args:
+        summary (pandas.DataFrame): Output of ``customer_summary``,
+            sorted by big-order revenue.
+        path (pathlib.Path): Destination PNG; overwritten if present.
+        top_n (int): Customers shown individually; the rest are
+            combined into one bar.
+        highlight (int): Number of leading bars drawn in the accent
+            color.
+
+    Returns:
+        None. Saves the figure to ``path``.
+    """
     top = summary.head(top_n)
     rest = summary.iloc[top_n:]
     labels = [f"{n} ({c})" for n, c in zip(top["CompanyName"], top["Country"])]
@@ -135,6 +201,15 @@ def plot_big_order_customers(summary, path, top_n=TOP_N_CUSTOMERS, highlight=3):
 
 
 def main():
+    """Run the Q1 analysis and write its tables and charts.
+
+    Args:
+        None.
+
+    Returns:
+        None. Writes CSVs to ``outputs`` and PNGs to
+        ``docs/figures``, and prints a summary.
+    """
     ensure_output_dirs()
     orders = orders_with_revenue(load_sheets())
     cutoff = big_order_cutoff(orders)

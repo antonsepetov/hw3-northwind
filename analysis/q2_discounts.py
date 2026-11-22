@@ -1,3 +1,8 @@
+"""Q2: do discounts lead to bigger orders?
+
+Writes charts to ``docs/figures`` and tables to ``outputs``.
+"""
+
 import matplotlib
 
 matplotlib.use("Agg")
@@ -13,6 +18,17 @@ NEUTRAL_COLOR = "#64748b"
 
 
 def prepare_lines(sheets):
+    """Return order lines with customer, gross revenue and discount.
+
+    Args:
+        sheets (dict[str, pandas.DataFrame]): Workbook from
+            ``load_sheets``.
+
+    Returns:
+        pandas.DataFrame: Order lines with ``CustomerID``,
+        ``GrossRevenue`` and ``DiscountGiven`` (both USD) and a
+        boolean ``Discounted`` column.
+    """
     lines = line_items(sheets).merge(
         sheets["Orders"][["OrderID", "CustomerID"]], on="OrderID"
     )
@@ -23,6 +39,16 @@ def prepare_lines(sheets):
 
 
 def discount_level_summary(lines):
+    """Summarize quantity and revenue at each discount rate.
+
+    Args:
+        lines (pandas.DataFrame): Order lines from ``prepare_lines``.
+
+    Returns:
+        pandas.DataFrame: One row per distinct discount rate with
+        line count, mean and median quantity, revenue and discount
+        given (USD).
+    """
     summary = lines.groupby("Discount").agg(
         Lines=("OrderID", "count"),
         AvgQuantity=("Quantity", "mean"),
@@ -34,6 +60,23 @@ def discount_level_summary(lines):
 
 
 def within_group_lift(lines, keys):
+    """Measure extra quantity on discounted lines within groups.
+
+    For each group with both discounted and full-price lines, takes
+    the ratio of mean quantities, then averages the ratios
+    geometrically.
+
+    Args:
+        lines (pandas.DataFrame): Order lines from ``prepare_lines``.
+        keys (list[str]): Columns defining a group, e.g.
+            ``["CustomerID"]``.
+
+    Returns:
+        dict: ``Groups`` (int, groups compared), ``MeanLift`` (float,
+        geometric-mean lift; 0.10 means 10% more units),
+        ``MedianLift`` (float) and ``GroupsWhereDiscountedHigher``
+        (int).
+    """
     means = lines.groupby(keys + ["Discounted"])["Quantity"].mean().unstack()
     both = means.dropna()
     ratios = both[True] / both[False]
@@ -48,6 +91,17 @@ def within_group_lift(lines, keys):
 
 
 def comparison_table(lines):
+    """Compare discounted vs full-price quantity under four groupings.
+
+    Args:
+        lines (pandas.DataFrame): Order lines from ``prepare_lines``.
+
+    Returns:
+        pandas.DataFrame: One row per comparison (all lines, same
+        product, same customer, same customer and product) with the
+        fields of ``within_group_lift``. The all-lines row uses a
+        ratio of means and leaves the other fields empty.
+    """
     by_flag = lines.groupby("Discounted")["Quantity"].mean()
     rows = [
         {
@@ -68,6 +122,20 @@ def comparison_table(lines):
 
 
 def relative_quantity_by_level(lines, levels=STANDARD_LEVELS):
+    """Return quantity relative to each customer's full-price average.
+
+    Args:
+        lines (pandas.DataFrame): Order lines from ``prepare_lines``.
+        levels (list[float]): Discount rates to keep, as fractions;
+            other rates are dropped.
+
+    Returns:
+        pandas.DataFrame: One row per discount rate with ``Lines``,
+        ``RelativeQuantity`` (mean ratio; 1.0 is the customer's
+        usual full-price quantity), ``std`` and ``CI95`` (half-width
+        of a normal-approximation 95% interval). Customers with no
+        full-price lines are excluded.
+    """
     baseline = (
         lines[~lines["Discounted"]].groupby("CustomerID")["Quantity"].mean().rename("Baseline")
     )
@@ -80,12 +148,32 @@ def relative_quantity_by_level(lines, levels=STANDARD_LEVELS):
 
 
 def break_even_lift(lines):
+    """Return the quantity lift that offsets the average discount.
+
+    Args:
+        lines (pandas.DataFrame): Order lines from ``prepare_lines``.
+
+    Returns:
+        float: Required lift (0.172 means 17.2% more units), using
+        the gross-revenue-weighted discount rate of discounted lines.
+    """
     discounted = lines[lines["Discounted"]]
     rate = discounted["DiscountGiven"].sum() / discounted["GrossRevenue"].sum()
     return 1 / (1 - rate) - 1
 
 
 def plot_comparison(table, break_even, path):
+    """Plot quantity lift by comparison with a break-even line.
+
+    Args:
+        table (pandas.DataFrame): Output of ``comparison_table``.
+        break_even (float): Break-even lift as a fraction, from
+            ``break_even_lift``.
+        path (pathlib.Path): Destination PNG; overwritten if present.
+
+    Returns:
+        None. Saves the figure to ``path``.
+    """
     fig, ax = plt.subplots(figsize=(9, 4.8))
     labels = table["Comparison"]
     values = table["MeanLift"] * 100
@@ -116,6 +204,16 @@ def plot_comparison(table, break_even, path):
 
 
 def plot_relative_quantity(rel, path):
+    """Plot relative quantity by discount rate with 95% intervals.
+
+    Args:
+        rel (pandas.DataFrame): Output of
+            ``relative_quantity_by_level``.
+        path (pathlib.Path): Destination PNG; overwritten if present.
+
+    Returns:
+        None. Saves the figure to ``path``.
+    """
     fig, ax = plt.subplots(figsize=(9, 4.5))
     labels = ["Full price" if d == 0 else f"{d:.0%} off" for d in rel["Discount"]]
     colors = [NEUTRAL_COLOR if d == 0 else DISCOUNT_COLOR for d in rel["Discount"]]
@@ -135,6 +233,15 @@ def plot_relative_quantity(rel, path):
 
 
 def main():
+    """Run the Q2 analysis and write its tables and charts.
+
+    Args:
+        None.
+
+    Returns:
+        None. Writes CSVs to ``outputs`` and PNGs to
+        ``docs/figures``, and prints a summary.
+    """
     ensure_output_dirs()
     lines = prepare_lines(load_sheets())
     levels = discount_level_summary(lines)

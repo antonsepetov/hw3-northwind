@@ -1,3 +1,8 @@
+"""Q3: which best sellers are running low on stock?
+
+Writes charts to ``docs/figures`` and tables to ``outputs``.
+"""
+
 import matplotlib
 
 matplotlib.use("Agg")
@@ -26,6 +31,16 @@ NEUTRAL_COLOR = "#94a3b8"
 
 
 def dated_lines(sheets):
+    """Return order lines with revenue and order date.
+
+    Args:
+        sheets (dict[str, pandas.DataFrame]): Workbook from
+            ``load_sheets``.
+
+    Returns:
+        pandas.DataFrame: Output of ``line_items`` plus
+        ``OrderDate`` as datetime.
+    """
     lines = line_items(sheets).merge(
         sheets["Orders"][["OrderID", "OrderDate"]], on="OrderID"
     )
@@ -34,17 +49,53 @@ def dated_lines(sheets):
 
 
 def period_months(lines):
+    """Return the length of the sales period in months.
+
+    Args:
+        lines (pandas.DataFrame): Order lines with ``OrderDate``.
+
+    Returns:
+        float: Days from first to last order, inclusive, divided by
+        the average month length (30.44 days).
+    """
     span = lines["OrderDate"].max() - lines["OrderDate"].min()
     return (span.days + 1) / DAYS_PER_MONTH
 
 
 def monthly_sales(lines, months, start=None, end=None):
+    """Return average units sold per month for each product.
+
+    Args:
+        lines (pandas.DataFrame): Order lines with ``OrderDate``.
+        months (float): Months to divide total units by.
+        start (str | None): First order date to include; None uses
+            all lines.
+        end (str | None): Exclusive end date; used only when
+            ``start`` is given.
+
+    Returns:
+        pandas.Series: Units per month indexed by ``ProductID``.
+        Products with no sales in the window are absent.
+    """
     if start is not None:
         lines = lines[(lines["OrderDate"] >= start) & (lines["OrderDate"] < end)]
     return lines.groupby("ProductID")["Quantity"].sum() / months
 
 
 def product_stock_table(sheets, lines):
+    """Build the per-product sales pace and stock coverage table.
+
+    Args:
+        sheets (dict[str, pandas.DataFrame]): Workbook from
+            ``load_sheets``.
+        lines (pandas.DataFrame): Output of ``dated_lines``.
+
+    Returns:
+        pandas.DataFrame: One row per product with stock fields,
+        category name, monthly units (full period and
+        ``RECENT_WINDOW``), weeks of stock on hand and including
+        units on order, and a boolean ``BelowReorderLevel``.
+    """
     products = sheets["Product"][
         [
             "ProductID",
@@ -78,12 +129,35 @@ def product_stock_table(sheets, lines):
 
 
 def flag_at_risk(active, sales_col="MonthlyUnits", weeks_col="WeeksOfStock"):
+    """Flag top-third sellers with under two weeks of stock.
+
+    Args:
+        active (pandas.DataFrame): Active products from
+            ``product_stock_table``.
+        sales_col (str): Column holding monthly units sold.
+        weeks_col (str): Column holding weeks of stock.
+
+    Returns:
+        tuple[pandas.Series, float]: Boolean at-risk flag per row,
+        and the monthly-units cutoff for the top third of sellers.
+    """
     cutoff = active[sales_col].quantile(TOP_SELLER_QUANTILE)
     at_risk = (active[sales_col] >= cutoff) & (active[weeks_col] < LOW_STOCK_WEEKS)
     return at_risk, cutoff
 
 
 def plot_risk_scatter(active, cutoff, path):
+    """Plot sales pace vs weeks of stock, marking at-risk products.
+
+    Args:
+        active (pandas.DataFrame): Active products with an
+            ``AtRisk`` column.
+        cutoff (float): Top-third sales cutoff in units per month.
+        path (pathlib.Path): Destination PNG; overwritten if present.
+
+    Returns:
+        None. Saves the figure to ``path``.
+    """
     fig, ax = plt.subplots(figsize=(10, 6.2))
     y = active["WeeksOfStock"].clip(upper=Y_AXIS_CAP_WEEKS)
     capped = active["WeeksOfStock"] > Y_AXIS_CAP_WEEKS
@@ -137,6 +211,16 @@ def plot_risk_scatter(active, cutoff, path):
 
 
 def plot_reorder_vs_sales(active, path):
+    """Plot reorder level against sales pace for active products.
+
+    Args:
+        active (pandas.DataFrame): Active products with ``AtRisk``
+            and ``BelowReorderLevel`` columns.
+        path (pathlib.Path): Destination PNG; overwritten if present.
+
+    Returns:
+        None. Saves the figure to ``path``.
+    """
     fig, ax = plt.subplots(figsize=(9, 5))
     risk = active["AtRisk"]
     flagged = active["BelowReorderLevel"]
@@ -156,6 +240,15 @@ def plot_reorder_vs_sales(active, path):
 
 
 def main():
+    """Run the Q3 analysis and write its tables and charts.
+
+    Args:
+        None.
+
+    Returns:
+        None. Writes CSVs to ``outputs`` and PNGs to
+        ``docs/figures``, and prints a summary.
+    """
     ensure_output_dirs()
     sheets = load_sheets()
     lines = dated_lines(sheets)
