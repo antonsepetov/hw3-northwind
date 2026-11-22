@@ -1,0 +1,5 @@
+Comparison,Groups,MeanLift,MedianLift,GroupsWhereDiscountedHigher
+All lines (no adjustment),,0.2484208228319813,,
+Same product,77.0,0.21056459931832117,0.2513835085777534,54.0
+Same customer,54.0,-0.00804174720577333,0.0435599924553185,30.0
+Same customer and product,195.0,0.10017242893421341,0.06666666666666665,98.0
