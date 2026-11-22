@@ -1,0 +1,14 @@
+# Original skill download (installed copy lives in .claude/skills/)
+SKILL (3).md
+
+# Local Claude Code settings
+.claude/settings.local.json
+
+# Python environment and caches
+.venv/
+__pycache__/
+*.pyc
+
+# Excel lock files and macOS clutter
+~$*.xlsx
+.DS_Store
