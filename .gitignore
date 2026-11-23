@@ -12,3 +12,6 @@ __pycache__/
 # Excel lock files and macOS clutter
 ~$*.xlsx
 .DS_Store
+
+# Local preview config
+.claude/launch.json

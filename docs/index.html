@@ -1,0 +1,268 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Northwind: Orders, Discounts, Stock</title>
+<meta name="description" content="Three business questions about Northwind Traders: big-order concentration, discount effectiveness, and best sellers at risk of running out.">
+<style>
+  :root {
+    --bg: #f8fafc;
+    --card: #ffffff;
+    --text: #0f172a;
+    --muted: #475569;
+    --line: #e2e8f0;
+    --accent: #c2410c;
+    --accent-soft: #fff7ed;
+    --todo: #7c3aed;
+    --todo-soft: #f5f3ff;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font: 17px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  .wrap { max-width: 920px; margin: 0 auto; padding: 0 16px; }
+  header { padding: 56px 0 32px; border-bottom: 1px solid var(--line); background: var(--card); }
+  header .eyebrow { color: var(--accent); font-weight: 600; font-size: 14px; letter-spacing: .04em; text-transform: uppercase; margin: 0 0 8px; }
+  h1 { font-size: 36px; line-height: 1.2; margin: 0 0 16px; }
+  header p { color: var(--muted); margin: 0 0 12px; max-width: 720px; }
+  .facts { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 24px; padding: 0; list-style: none; }
+  .facts li { background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 10px 14px; font-size: 14px; color: var(--muted); }
+  .facts strong { display: block; color: var(--text); font-size: 20px; }
+  nav.toc { margin: 28px 0 0; font-size: 15px; }
+  nav.toc a { color: var(--text); margin-right: 18px; }
+  section.q { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 32px; margin: 32px 0; }
+  .qnum { color: var(--accent); font-weight: 700; font-size: 14px; letter-spacing: .04em; text-transform: uppercase; margin: 0; }
+  h2 { font-size: 26px; line-height: 1.3; margin: 6px 0 20px; }
+  h3 { font-size: 15px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); margin: 28px 0 8px; }
+  p { margin: 0 0 12px; }
+  ul.tight { margin: 0 0 12px; padding-left: 20px; }
+  ul.tight li { margin-bottom: 6px; }
+  figure { margin: 20px 0; }
+  figure img { width: 100%; height: auto; border: 1px solid var(--line); border-radius: 8px; background: #fff; }
+  figcaption { font-size: 14px; color: var(--muted); margin-top: 8px; }
+  .finding { background: var(--accent-soft); border-left: 4px solid var(--accent); border-radius: 0 8px 8px 0; padding: 16px 20px; margin: 8px 0 0; }
+  .finding p:last-child { margin-bottom: 0; }
+  .implication { background: var(--card); border: 2px solid var(--text); border-radius: 8px; padding: 16px 20px; }
+  .implication p:last-child { margin-bottom: 0; }
+  .table-scroll { overflow-x: auto; margin: 16px 0; }
+  table { border-collapse: collapse; width: 100%; font-size: 15px; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+  th { font-size: 13px; color: var(--muted); text-transform: uppercase; letter-spacing: .03em; }
+  td.num, th.num { text-align: right; }
+  tr.flag td { background: var(--accent-soft); }
+  .note { font-size: 14px; color: var(--muted); }
+  footer { padding: 32px 0 56px; color: var(--muted); font-size: 15px; }
+  footer a, section a { color: var(--accent); }
+  @media (max-width: 600px) {
+    h1 { font-size: 28px; }
+    h2 { font-size: 22px; }
+    section.q { padding: 20px; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap">
+    <p class="eyebrow">Northwind Traders · Business data analysis</p>
+    <h1>Who drives big orders, do discounts pay, and what could run out?</h1>
+    <p>Northwind Traders is a specialty food wholesaler selling to grocery stores and restaurants in 21 countries. This page answers three questions a manager would ask about its customers, pricing and inventory, using 22 months of order history.</p>
+    <p class="note">Data: the Northwind database (830 orders, 2,155 order lines, 89 ordering customers, 77 products), 4 July 1996 to 6 May 1998. Revenue is price × quantity × (1 − discount), in USD. Code and reproduction steps: <a href="https://github.com/antonsepetov/hw3-northwind">GitHub repository</a>.</p>
+    <ul class="facts">
+      <li><strong>$1.27M</strong>revenue</li>
+      <li><strong>830</strong>orders</li>
+      <li><strong>$943</strong>median order</li>
+      <li><strong>39%</strong>of order lines discounted</li>
+    </ul>
+    <nav class="toc">
+      <a href="#q1">1. Big orders</a>
+      <a href="#q2">2. Discounts</a>
+      <a href="#q3">3. Stock risk</a>
+    </nav>
+  </div>
+</header>
+
+<main class="wrap">
+
+  <!-- Question 1 -->
+  <section class="q" id="q1">
+    <p class="qnum">Question 1</p>
+    <h2>How many big orders are there, and are they coming from one or two "whales" or spread across many customers?</h2>
+
+    <h3>Why it matters</h3>
+    <p>Big orders bring in a large share of revenue. If they depend on one or two customers, losing either would hurt badly, and those accounts need protecting. If they are spread out, the risk is lower and growth can come from many places.</p>
+
+    <h3>Approach</h3>
+    <ul class="tight">
+      <li>Calculated the revenue of each order (sum of its lines, after discounts).</li>
+      <li>Defined a <strong>big order</strong> as one in the <strong>top 10% by value</strong>: $3,161 or more.</li>
+      <li>Totaled big-order revenue by customer and measured how concentrated it is.</li>
+      <li>Repeated the analysis with four other definitions of "big" ($2,500+, $5,000+, top 5%, and a statistical outlier rule) to check the result does not depend on the cutoff.</li>
+    </ul>
+
+    <figure>
+      <img src="figures/q1_order_distribution.png" alt="Histogram of 830 order values on a log scale. Most orders fall between $100 and $3,000; 83 orders above the $3,161 cutoff are highlighted.">
+      <figcaption>Most orders are modest (median $943). The 83 orders above $3,161 form a long tail reaching $16,387.</figcaption>
+    </figure>
+
+    <figure>
+      <img src="figures/q1_big_order_customers.png" alt="Horizontal bar chart of revenue from big orders by customer. QUICK-Stop, Ernst Handel and Save-a-lot Markets lead with $82K, $76K and $68K; the next customer has $29K.">
+      <figcaption>Three customers stand far above the rest. The remaining 27 customers with big orders each account for 6% or less.</figcaption>
+    </figure>
+
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr><th>Definition of "big"</th><th class="num">Cutoff</th><th class="num">Big orders</th><th class="num">Customers</th><th class="num">Big three's share</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>$2,500 and up</td><td class="num">$2,500</td><td class="num">130</td><td class="num">44</td><td class="num">43%</td></tr>
+          <tr class="flag"><td><strong>Top 10% of orders (used)</strong></td><td class="num">$3,161</td><td class="num">83</td><td class="num">30</td><td class="num">47%</td></tr>
+          <tr><td>Statistical outlier rule</td><td class="num">$4,020</td><td class="num">59</td><td class="num">22</td><td class="num">51%</td></tr>
+          <tr><td>Top 5% of orders</td><td class="num">$4,707</td><td class="num">42</td><td class="num">16</td><td class="num">52%</td></tr>
+          <tr><td>$5,000 and up</td><td class="num">$5,000</td><td class="num">31</td><td class="num">14</td><td class="num">50%</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="note">The same three customers top the list under every definition.</p>
+
+    <h3>Main finding</h3>
+    <div class="finding">
+      <p><strong>It is not one or two whales; it is a "big three," then a long tail.</strong></p>
+      <ul class="tight">
+        <li>83 big orders (10% of orders) bring in <strong>38% of all revenue</strong>. 30 of 89 customers placed at least one.</li>
+        <li><strong>QUICK-Stop</strong> (Germany), <strong>Ernst Handel</strong> (Austria) and <strong>Save-a-lot Markets</strong> (USA) placed 38 of the 83 and earned <strong>47% of big-order revenue</strong>. Together they are 25% of Northwind's total revenue.</li>
+        <li>Ordering big is their normal pattern: 39–47% of each one's orders are big, compared with 10% across all orders.</li>
+        <li>After them the drop is steep: the next customer, Rattlesnake Canyon Grocery, has 6% of big-order revenue.</li>
+      </ul>
+    </div>
+
+    <h3>Business implication</h3>
+    <div class="implication">
+      <p>These three customers bring in a quarter of Northwind's revenue, and losing even one would cost about 8% of sales overnight. Keeping them should be a top priority: each should have a dedicated account manager, and their orders should come first when stock runs low. We want them to know how much we value them as customers. Beyond protecting these relationships, we should grow them, and study what makes these three order big so we can turn the next tier of customers into accounts like them.</p>
+    </div>
+  </section>
+
+  <!-- Question 2 -->
+  <section class="q" id="q2">
+    <p class="qnum">Question 2</p>
+    <h2>Are discounts leading to bigger orders, or should Northwind stop discounting?</h2>
+
+    <h3>Why it matters</h3>
+    <p>Northwind gave away <strong>$88,666</strong> in discounts, 6.5% of what it would have billed at full price. Discounts on 838 of 2,155 order lines (39%) are only worth it if they make customers buy enough extra to make up the lost revenue.</p>
+
+    <h3>Approach</h3>
+    <ul class="tight">
+      <li>Compared the quantity on discounted order lines with full-price lines.</li>
+      <li>A simple comparison is misleading, because discounts go mostly to customers who already buy in bulk. So the comparison was repeated <strong>within the same customer</strong>, and within the same customer buying the same product.</li>
+      <li>Calculated the <strong>break-even</strong>: the average discount on a discounted line is 14.7%, so it needs <strong>17.2% more units</strong> just to bring in the same revenue as a full-price line.</li>
+      <li>Checked whether bigger discounts (5% to 25%) buy bigger quantities.</li>
+    </ul>
+
+    <figure>
+      <img src="figures/q2_quantity_lift.png" alt="Bar chart of extra units on discounted lines: +25% for all lines, +21% within the same product, -1% within the same customer, +10% within the same customer and product. A dashed break-even line sits at +17%.">
+      <figcaption>The apparent +25% boost shrinks to −1% to +10% once each customer is compared with itself, below the +17% needed to break even.</figcaption>
+    </figure>
+
+    <figure>
+      <img src="figures/q2_relative_quantity_by_level.png" alt="Bar chart of quantity relative to each customer's full-price average, by discount level: 1.00 at full price, 1.11 at 5%, 0.98 at 10%, 1.06 at 15%, 1.00 at 20%, 1.07 at 25%, with overlapping 95% confidence intervals.">
+      <figcaption>Compared with each customer's own full-price orders, a 25% discount buys no more than a 5% one. Error bars are 95% confidence intervals.</figcaption>
+    </figure>
+
+    <h3>Main finding</h3>
+    <div class="finding">
+      <p><strong>Discounts are not leading to bigger orders, at least not enough to pay for themselves.</strong></p>
+      <ul class="tight">
+        <li>Overall, discounted lines are 25% bigger. But when the <strong>same customer</strong> gets a discount, they buy about the same as usual (<strong>−1%</strong>).</li>
+        <li>Even in the strictest comparison (same customer, same product) the lift is <strong>+10%</strong>, short of the <strong>+17% break-even</strong>, and only 98 of 195 such pairs went up at all.</li>
+        <li>Discount size makes no clear difference: quantities at 10%, 15%, 20% and 25% off are all within the margin of error of full price.</li>
+        <li>Discounts are concentrated: 35 of 89 customers never got one, while the big three got discounts on 49% of their lines (37% for everyone else).</li>
+      </ul>
+      <p class="note">Limits: this is historical data, not an experiment, so it cannot show whether some customers would have left without discounts. There is no cost data, so the analysis covers revenue, not profit.</p>
+    </div>
+
+    <h3>Business implication</h3>
+    <div class="implication">
+      <p>Discounts cost Northwind $88.7K, yet customers who get them buy about the same as they do at full price, so most of that money is simply given away. The manager should test removing routine discounts for a group of customers and track whether their orders drop. In their place, Northwind should offer discounts only on bulk orders above roughly $3,000, the size of its top 10% of orders, so customers earn the discount by ordering more.</p>
+    </div>
+  </section>
+
+  <!-- Question 3 -->
+  <section class="q" id="q3">
+    <p class="qnum">Question 3</p>
+    <h2>Which products sell a lot but have low inventory, so we must make sure they stay in stock?</h2>
+
+    <h3>Why it matters</h3>
+    <p>Running out of a best seller loses sales immediately and can push customers to other suppliers, including the big accounts from Question 1. Stock is thin across the catalog: the typical active product has about <strong>4.5 weeks</strong> of sales on hand.</p>
+
+    <h3>Approach</h3>
+    <ul class="tight">
+      <li>Measured each active product's <strong>sales pace</strong> as average units sold per month over the full 22 months.</li>
+      <li>Converted current stock into <strong>weeks of stock</strong> at that pace (units in stock ÷ weekly sales).</li>
+      <li>Flagged products in the <strong>top third by sales</strong> (36+ units a month) with <strong>under 2 weeks of stock</strong>. Discontinued products were excluded, since they cannot be restocked.</li>
+      <li>Compared the list with Northwind's own reorder levels, the stock level at which a product is supposed to be reordered.</li>
+    </ul>
+
+    <figure>
+      <img src="figures/q3_stock_risk.png" alt="Scatterplot of 69 active products: average monthly units sold against weeks of stock. Nine products in the bottom-right zone (36+ units a month, under 2 weeks of stock) are numbered and highlighted.">
+      <figcaption>Nine best sellers sit in the danger zone (shaded): high sales and under two weeks of stock.</figcaption>
+    </figure>
+
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr><th>#</th><th>Product</th><th>Category</th><th class="num">Sold / month</th><th class="num">In stock</th><th class="num">Weeks left</th><th class="num">On order</th><th>Reorder alert?</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>1</td><td>Gorgonzola Telino</td><td>Dairy</td><td class="num">63</td><td class="num">0</td><td class="num">0.0</td><td class="num">70</td><td>Yes</td></tr>
+          <tr><td>2</td><td>Sir Rodney's Scones</td><td>Confections</td><td class="num">46</td><td class="num">3</td><td class="num">0.3</td><td class="num">40</td><td>Yes</td></tr>
+          <tr><td>3</td><td>Scottish Longbreads</td><td>Confections</td><td class="num">36</td><td class="num">6</td><td class="num">0.7</td><td class="num">10</td><td>Yes</td></tr>
+          <tr class="flag"><td>4</td><td><strong>Camembert Pierrot</strong></td><td>Dairy</td><td class="num">71</td><td class="num">19</td><td class="num">1.2</td><td class="num">0</td><td><strong>No</strong></td></tr>
+          <tr class="flag"><td>5</td><td><strong>Tarte au sucre</strong></td><td>Confections</td><td class="num">49</td><td class="num">17</td><td class="num">1.5</td><td class="num">0</td><td><strong>No</strong></td></tr>
+          <tr><td>6</td><td>Chang</td><td>Beverages</td><td class="num">48</td><td class="num">17</td><td class="num">1.5</td><td class="num">40</td><td>Yes</td></tr>
+          <tr><td>7</td><td>Gnocchi di nonna Alice</td><td>Grains/Cereals</td><td class="num">57</td><td class="num">21</td><td class="num">1.6</td><td class="num">10</td><td>Yes</td></tr>
+          <tr class="flag"><td>8</td><td><strong>Mozzarella di Giovanni</strong></td><td>Dairy</td><td class="num">37</td><td class="num">14</td><td class="num">1.7</td><td class="num">0</td><td><strong>No</strong></td></tr>
+          <tr><td>9</td><td>Outback Lager</td><td>Beverages</td><td class="num">37</td><td class="num">15</td><td class="num">1.8</td><td class="num">10</td><td>Yes</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="note">Highlighted rows have nothing on order and no reorder alert set (reorder level 0).</p>
+
+    <figure>
+      <img src="figures/q3_reorder_vs_sales.png" alt="Scatterplot of reorder level against monthly units sold for active products, showing no relationship (correlation -0.11). Three at-risk products with reorder level 0 are shown as hollow markers.">
+      <figcaption>Reorder levels show no relationship to how fast products sell (correlation −0.11).</figcaption>
+    </figure>
+
+    <h3>Main finding</h3>
+    <div class="finding">
+      <p><strong>Nine best sellers have under two weeks of stock, and three of them have no safety net.</strong></p>
+      <ul class="tight">
+        <li>Six of the nine are already flagged by their reorder level and have stock on order (Gorgonzola Telino is sold out, with 70 units coming).</li>
+        <li><strong>Camembert Pierrot</strong>, the top seller of the whole period, <strong>Tarte au sucre</strong> and <strong>Mozzarella di Giovanni</strong> have about 1–2 weeks left, <strong>nothing on order</strong>, and a reorder level of 0, so Northwind's system will not warn about them until they are sold out.</li>
+        <li>The bigger problem is the reorder system itself: reorder levels are unrelated to sales pace, and six slow sellers are flagged while these fast sellers are not.</li>
+        <li>Dairy and confections account for six of the nine.</li>
+      </ul>
+      <p class="note">Check: using only the last six months' sales pace flags 14 products, 8 of them on this list. The long-run average is steadier but slower to notice products whose sales have recently jumped, such as Konbu (about one week of stock at its recent pace). The stock snapshot is undated and is treated as the position at the end of the order data. Some discontinued products are still in demand (Guaraná Fantástica: 51 units a month).</p>
+    </div>
+
+    <h3>Business implication</h3>
+    <div class="implication">
+      <p>Camembert Pierrot, Tarte au sucre and Mozzarella di Giovanni should be reordered immediately: they are among Northwind's best sellers, have less than two weeks of stock, and nothing on order. But these three are a symptom of a bigger problem. Northwind's reorder alerts have no connection to how fast products sell, which is why nine best sellers are close to running out. Fixing this one product at a time is not enough; Northwind needs an inventory optimization model that uses sales speed, supplier delivery times and storage costs to keep the right amount of every product in stock at all times.</p>
+    </div>
+  </section>
+
+</main>
+
+<footer>
+  <div class="wrap">
+    <p>Analysis code (Python), data and step-by-step reproduction instructions: <a href="https://github.com/antonsepetov/hw3-northwind">github.com/antonsepetov/hw3-northwind</a>. Every chart and number on this page is produced by the scripts in <code>analysis/</code>.</p>
+    <p>15.561 HW 3 · Prepared with Claude Code as a coding agent.</p>
+  </div>
+</footer>
+
+</body>
+</html>
